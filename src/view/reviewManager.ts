@@ -314,7 +314,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 				throw new Error('Unable to find matching file');
 			}
 
-			const comment = await this._prManager.createCommentReply(this._prManager.activePullRequest, text, thread.threadId);
+			const commentFromThread = this._comments.find(c => c.id.toString() === thread.threadId);
+			if (!commentFromThread) {
+				throw new Error('Unable to find thread to respond to.');
+			}
+
+			const comment = await this._prManager.createCommentReply(this._prManager.activePullRequest, text, commentFromThread);
 			thread.comments.push({
 				commentId: comment.id.toString(),
 				body: new vscode.MarkdownString(comment.body),
@@ -457,6 +462,13 @@ export class ReviewManager implements vscode.DecorationProvider {
 						}]
 					});
 				}
+
+				this._onDidChangeDocumentCommentThreads.fire({
+					added: [],
+					changed: [],
+					removed: [],
+					inDraftMode: await this._prManager.inDraftMode(this._prManager.activePullRequest)
+				});
 			}
 
 			const indexInAllComments = this._comments.findIndex(c => c.id.toString() === comment.commentId);

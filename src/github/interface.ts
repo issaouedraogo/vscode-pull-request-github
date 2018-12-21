@@ -124,7 +124,7 @@ export interface IPullRequestManager {
 	getTimelineEvents(pullRequest: IPullRequestModel): Promise<TimelineEvent[]>;
 	getIssueComments(pullRequest: IPullRequestModel): Promise<Github.IssuesGetCommentsResponseItem[]>;
 	createIssueComment(pullRequest: IPullRequestModel, text: string): Promise<Github.IssuesCreateCommentResponse>;
-	createCommentReply(pullRequest: IPullRequestModel, body: string, reply_to: string): Promise<Comment>;
+	createCommentReply(pullRequest: IPullRequestModel, body: string, reply_to: Comment): Promise<Comment>;
 	createComment(pullRequest: IPullRequestModel, body: string, path: string, position: number): Promise<Comment>;
 	getPullRequestDefaults(): Promise<PullRequestsCreateParams>;
 	createPullRequest(params: PullRequestsCreateParams): Promise<IPullRequestModel>;

@@ -192,7 +192,12 @@ export class CredentialStore {
 			octokit,
 			graphql: new ApolloClient({
 				link: link(baseUrl, creds.token),
-				cache: new InMemoryCache
+				cache: new InMemoryCache,
+				defaultOptions: {
+					query: {
+						fetchPolicy: 'no-cache'
+					}
+				}
 			})
 		};
 	}

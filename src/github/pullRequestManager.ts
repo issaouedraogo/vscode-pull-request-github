@@ -77,6 +77,15 @@ const enum IncludeRemote {
 	All
 }
 
+interface NewCommentPosition {
+	path: string;
+	position: number;
+}
+
+interface ReplyCommentPosition {
+	inReplyTo: string;
+}
+
 export class PullRequestManager implements IPullRequestManager {
 	static ID = 'PullRequestManager';
 	private _activePullRequest?: IPullRequestModel;
@@ -497,11 +506,11 @@ export class PullRequestManager implements IPullRequestManager {
 		return this.addCommentPermissions(promise.data as Comment, remote);
 	}
 
-	async createCommentReply(pullRequest: IPullRequestModel, body: string, reply_to: string): Promise<Comment> {
-		// const pendingReviewId = await this.getPendingReviewId(pullRequest as PullRequestModel);
-		// if (pendingReviewId) {
-		// 	return this.addCommentToPendingReview(pullRequest as PullRequestModel, pendingReviewId, body, reply_to);
-		// }
+	async createCommentReply(pullRequest: IPullRequestModel, body: string, reply_to: Comment): Promise<Comment> {
+		const pendingReviewId = await this.getPendingReviewId(pullRequest as PullRequestModel);
+		if (pendingReviewId) {
+			return this.addCommentToPendingReview(pullRequest as PullRequestModel, pendingReviewId, body, { inReplyTo: reply_to.node_id });
+		}
 
 		const { octokit, remote } = await (pullRequest as PullRequestModel).githubRepository.ensure();
 
@@ -511,7 +520,7 @@ export class PullRequestManager implements IPullRequestManager {
 				repo: remote.repositoryName,
 				number: pullRequest.prNumber,
 				body: body,
-				in_reply_to: Number(reply_to)
+				in_reply_to: Number(reply_to.id)
 			});
 
 			return this.addCommentPermissions(ret.data, remote);
@@ -618,7 +627,7 @@ export class PullRequestManager implements IPullRequestManager {
 		}
 	}
 
-	async addCommentToPendingReview(pullRequest: PullRequestModel, reviewId: string, body: string, path: string, position: number): Promise<Comment> {
+	async addCommentToPendingReview(pullRequest: PullRequestModel, reviewId: string, body: string, position: NewCommentPosition | ReplyCommentPosition): Promise<Comment> {
 		const { mutate, remote } = await pullRequest.githubRepository.ensure();
 		const { data } = await mutate({
 			mutation: gql `
@@ -642,8 +651,7 @@ export class PullRequestManager implements IPullRequestManager {
 				input: {
 					pullRequestReviewId: reviewId,
 					body,
-					path,
-					position
+					...position
 				}
 			}
 		});
@@ -656,7 +664,7 @@ export class PullRequestManager implements IPullRequestManager {
 	async createComment(pullRequest: IPullRequestModel, body: string, path: string, position: number): Promise<Comment> {
 		const pendingReviewId = await this.getPendingReviewId(pullRequest as PullRequestModel);
 		if (pendingReviewId) {
-			return this.addCommentToPendingReview(pullRequest as PullRequestModel, pendingReviewId, body, path, position);
+			return this.addCommentToPendingReview(pullRequest as PullRequestModel, pendingReviewId, body, { path, position });
 		}
 
 		const { octokit, remote } = await (pullRequest as PullRequestModel).githubRepository.ensure();

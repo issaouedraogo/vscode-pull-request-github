@@ -532,13 +532,26 @@ export class PRNode extends TreeNode {
 		if (index > -1) {
 			fileChange.comments.splice(index, 1);
 		}
+
+		const inDraftMode = await this._prManager.inDraftMode(this.pullRequestModel);
+		this._onDidChangeCommentThreads.fire({
+			added: [],
+			changed: [],
+			removed: [],
+			inDraftMode
+		});
 	}
 
 	private async replyToCommentThread(document: vscode.TextDocument, _range: vscode.Range, thread: vscode.CommentThread, text: string) {
 		try {
 			const fileChange = this.findMatchingFileNode(document.uri);
 
-			const rawComment = await this._prManager.createCommentReply(this.pullRequestModel, text, thread.threadId);
+			const commentFromThread = fileChange.comments.find(c => c.id.toString() === thread.threadId);
+			if (!commentFromThread) {
+				throw new Error('Unable to find thread to respond to.');
+			}
+
+			const rawComment = await this._prManager.createCommentReply(this.pullRequestModel, text, commentFromThread);
 			thread.comments.push({
 				commentId: rawComment.id.toString(),
 				body: new vscode.MarkdownString(rawComment.body),
