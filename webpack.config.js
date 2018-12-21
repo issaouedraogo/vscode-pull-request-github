@@ -35,7 +35,7 @@ function getWebviewConfig(env) {
 			]
 		},
 		resolve: {
-			extensions: ['.tsx', '.ts', '.js', '.svg']
+			extensions: ['.tsx', '.ts', '.js', '.svg', '.gql']
 		},
 		devtool: !env.production ? 'inline-source-map' : undefined,
 		output: {
@@ -74,7 +74,7 @@ function getExtensionConfig(env) {
 					use: 'ts-loader',
 					exclude: /node_modules/
 				},
-				// FIXME: github-graphql-api uses .mjs, which imposes hard restrictions
+				// FIXME: apollo-client uses .mjs, which imposes hard restrictions
 				// on imports available from other callers. They probably didn't know
 				// this. They just used .mjs because it seemed new and hip.
 				//
@@ -85,6 +85,11 @@ function getExtensionConfig(env) {
 					test: /\.mjs$/,
 					include: /node_modules/,
 					type: "javascript/auto",
+				},
+				{
+					test: /\.gql/,
+					loader: 'graphql-tag/loader',
+					exclude: /node_modules/
 				}
 			]
 		},

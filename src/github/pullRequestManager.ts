@@ -20,6 +20,8 @@ import { Repository, RefType, UpstreamRef, Branch } from '../typings/git';
 import Logger from '../common/logger';
 import gql from 'graphql-tag';
 
+const queries = require('./queries.gql');
+
 interface PageInformation {
 	pullRequestPage: number;
 	hasMorePages: boolean;
@@ -364,32 +366,7 @@ export class PullRequestManager implements IPullRequestManager {
 	private async getAllPullRequestReviewComments(pullRequest: IPullRequestModel): Promise<Comment[]> {
 		const { remote, query } = await (pullRequest as PullRequestModel).githubRepository.ensure();
 		const { data } = await query({
-			query: gql `
-			  fragment Comment on PullRequestReviewComment {
-					id databaseId url
-					author {login avatarUrl}
-					path originalPosition
-					body
-					diffHunk
-					position
-					state
-					pullRequestReview { databaseId }
-				}
-
-				query PullRequestComments($owner:String!, $name:String!, $number:Int!, $first:Int=100) {
-					repository(owner:$owner, name:$name) {
-						pullRequest(number:$number) {
-							reviews(first:$first) {
-								nodes {
-									comments(first:100) {
-										nodes { ...Comment }
-									}
-								}
-							}
-						}
-					}
-				}
-			`,
+			query: queries.PullRequestComments,
 			variables: {
 				owner: remote.owner,
 				name: remote.repositoryName,
@@ -583,7 +560,7 @@ export class PullRequestManager implements IPullRequestManager {
 			update: (proxy, { data }) => {
 				const { pullRequestReview } = data.addPullRequestReview;
 				proxy.writeQuery({
-					query: GET_PENDING_REVIEW_ID_QUERY,
+					query: queries.GetPendingReviewId,
 					variables: {
 						pullRequestId: (pullRequest as PullRequestModel).prItem.node_id,
 						author: currentUser.login
@@ -615,7 +592,7 @@ export class PullRequestManager implements IPullRequestManager {
 		const { currentUser = '' } = octokit as any;
 		try {
 			const { data } = await query({
-				query: GET_PENDING_REVIEW_ID_QUERY,
+				query: queries.GetPendingReviewId,
 				variables: {
 					pullRequestId: (pullRequest as PullRequestModel).prItem.node_id,
 					author: currentUser.login
@@ -630,23 +607,7 @@ export class PullRequestManager implements IPullRequestManager {
 	async addCommentToPendingReview(pullRequest: PullRequestModel, reviewId: string, body: string, position: NewCommentPosition | ReplyCommentPosition): Promise<Comment> {
 		const { mutate, remote } = await pullRequest.githubRepository.ensure();
 		const { data } = await mutate({
-			mutation: gql `
-				mutation AddComment($input: AddPullRequestReviewCommentInput!) {
-					addPullRequestReviewComment(input: $input) {
-						comment {
-							id, databaseId,
-							url,
-							author { login avatarUrl }
-							position,
-							path,
-							originalPosition,
-							body,
-							diffHunk,
-							state,
-							pullRequestReview { databaseId }
-						}
-					}
-				}`,
+			mutation: queries.AddComment,
 			variables: {
 				input: {
 					pullRequestReviewId: reviewId,
@@ -1265,13 +1226,3 @@ const toComment = (comment: any): any => ({
 	isDraft: comment.state === 'PENDING',
 	pull_request_review_id: comment.pullRequestReview.databaseId
 });
-
-const GET_PENDING_REVIEW_ID_QUERY = gql `
-	query GetPendingReviewId($pullRequestId: ID!, $author: String!) {
-		node(id: $pullRequestId) {
-			...on PullRequest {
-				reviews(first: 1, author: $author, states: [PENDING]) { nodes { id } }
-			}
-		}
-	}
-`;
