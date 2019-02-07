@@ -201,13 +201,15 @@ export interface EditCommentResponse {
 	};
 }
 
+export interface SubmittedReview extends Review {
+	comments: {
+		nodes: ReviewComment[];
+	};
+}
+
 export interface SubmitReviewResponse {
 	submitPullRequestReview: {
-		pullRequestReview: {
-			comments: {
-				nodes: ReviewComment[];
-			}
-		}
+		pullRequestReview: SubmittedReview;
 	};
 }
 

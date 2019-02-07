@@ -7,7 +7,7 @@ import * as debounce from 'debounce';
 import { dateFromNow } from '../src/common/utils';
 import { EventType, isReviewEvent } from '../src/common/timelineEvent';
 import { PullRequestStateEnum } from '../src/github/interface';
-import { renderTimelineEvent, getStatus, renderComment, renderReview, ActionsBar, renderStatusChecks, updatePullRequestState, ElementIds } from './pullRequestOverviewRenderer';
+import { getStatus, renderComment, ActionsBar, renderStatusChecks, updatePullRequestState, ElementIds, appendReview, clearTextArea, renderTimelineEvents } from './pullRequestOverviewRenderer';
 import md from './mdRenderer';
 const emoji = require('node-emoji');
 import { getMessageHandler } from './message';
@@ -44,7 +44,7 @@ const messageHandler = getMessageHandler(message => {
 });
 
 function renderPullRequest(pr: PullRequest): void {
-	renderTimelineEvents(pr);
+	renderTimelineEvents(pr, messageHandler);
 	setTitleHTML(pr);
 	setTextArea();
 	renderStatusChecks(pr, messageHandler);
@@ -52,15 +52,6 @@ function renderPullRequest(pr: PullRequest): void {
 	updatePullRequestState(pr.state);
 
 	addEventListeners(pr);
-}
-
-function renderTimelineEvents(pr: PullRequest): void {
-	const timelineElement = document.getElementById(ElementIds.TimelineEvents)!;
-	timelineElement.innerHTML = '';
-	pr.events
-		.map(event => renderTimelineEvent(event, messageHandler, pr))
-		.filter(event => event !== undefined)
-		.forEach(renderedEvent => timelineElement.appendChild(renderedEvent as HTMLElement));
 }
 
 function setTitleHTML(pr: PullRequest): void {
@@ -250,7 +241,7 @@ function addEventListeners(pr: PullRequest): void {
 				args: inputBox.value
 			}).then(message => {
 				// succeed
-				appendReview(message.value);
+				appendReview(message.value, messageHandler);
 			}, err => {
 				// enable approve button
 				(<HTMLButtonElement>document.getElementById(ElementIds.Approve)).disabled = false;
@@ -267,7 +258,7 @@ function addEventListeners(pr: PullRequest): void {
 				command: 'pr.request-changes',
 				args: inputBox.value
 			}).then(message => {
-				appendReview(message.value);
+				appendReview(message.value, messageHandler);
 			}, err => {
 				(<HTMLButtonElement>document.getElementById(ElementIds.RequestChanges)).disabled = false;
 			});
@@ -293,14 +284,6 @@ function addEventListeners(pr: PullRequest): void {
 	}, 200);
 }
 
-function clearTextArea() {
-	(<HTMLTextAreaElement>document.getElementById(ElementIds.CommentTextArea)!).value = '';
-	(<HTMLButtonElement>document.getElementById(ElementIds.Reply)).disabled = true;
-	(<HTMLButtonElement>document.getElementById(ElementIds.RequestChanges)).disabled = true;
-
-	updateState({ pendingCommentText: undefined });
-}
-
 async function submitComment() {
 	(<HTMLButtonElement>document.getElementById(ElementIds.Reply)).disabled = true;
 	const result = await messageHandler.postMessage({
@@ -309,20 +292,6 @@ async function submitComment() {
 	});
 
 	appendComment(result.value);
-}
-
-function appendReview(review: any): void {
-	review.event = EventType.Reviewed;
-	const pullRequest = getState();
-	let events = pullRequest.events;
-	events.push(review);
-	updateState({ events: events });
-
-	const newReview = renderReview(review, messageHandler, pullRequest.supportsGraphQl);
-	if (newReview) {
-		document.getElementById(ElementIds.TimelineEvents)!.appendChild(newReview);
-	}
-	clearTextArea();
 }
 
 function appendComment(comment: any) {

@@ -20,7 +20,7 @@ import { Repository, RefType, UpstreamRef } from '../git/api';
 import Logger from '../common/logger';
 import { EXTENSION_ID } from '../constants';
 import { fromPRUri } from '../common/uri';
-import { convertRESTPullRequestToRawPullRequest, convertPullRequestsGetCommentsResponseItemToComment, convertIssuesCreateCommentResponseToComment, parseGraphQLTimelineEvents, convertRESTTimelineEvents, getRelatedUsersFromTimelineEvents, parseGraphQLComment } from './utils';
+import { convertRESTPullRequestToRawPullRequest, convertPullRequestsGetCommentsResponseItemToComment, convertIssuesCreateCommentResponseToComment, parseGraphQLTimelineEvents, convertRESTTimelineEvents, getRelatedUsersFromTimelineEvents, parseGraphQLComment, parseGraphQLReviewEvent, convertRESTReviewEvent } from './utils';
 import { PendingReviewIdResponse, TimelineEventsResponse, PullRequestCommentsResponse, AddCommentResponse, SubmitReviewResponse, DeleteReviewResponse, EditCommentResponse } from './graphql';
 const queries = require('./queries.gql');
 
@@ -1127,10 +1127,10 @@ export class PullRequestManager {
 			});
 	}
 
-	private async createReview(pullRequest: PullRequestModel, event: ReviewEvent, message?: string): Promise<void> {
+	private async createReview(pullRequest: PullRequestModel, event: ReviewEvent, message?: string): Promise<CommonReviewEvent> {
 		const { octokit, remote } = await pullRequest.githubRepository.ensure();
 
-		await octokit.pullRequests.createReview({
+		const { data } = await octokit.pullRequests.createReview({
 			owner: remote.owner,
 			repo: remote.repositoryName,
 			number: pullRequest.prNumber,
@@ -1138,10 +1138,10 @@ export class PullRequestManager {
 			body: message,
 		});
 
-		return;
+		return convertRESTReviewEvent(data);
 	}
 
-	public async submitReview(pullRequest: PullRequestModel, event?: ReviewEvent, body?: string): Promise<void> {
+	public async submitReview(pullRequest: PullRequestModel, event?: ReviewEvent, body?: string): Promise<CommonReviewEvent> {
 		const pendingReviewId = await this.getPendingReviewId(pullRequest);
 		const { mutate } = await pullRequest.githubRepository.ensure();
 
@@ -1157,13 +1157,14 @@ export class PullRequestManager {
 
 			const submittedComments = data!.submitPullRequestReview.pullRequestReview.comments.nodes.map(parseGraphQLComment);
 			_onDidSubmitReview.fire(submittedComments);
+			return parseGraphQLReviewEvent(data!.submitPullRequestReview.pullRequestReview);
 		} else {
-			Logger.appendLine(`Submitting review failed, no pending review for current pull request: ${pullRequest.prNumber}.`);
+			throw new Error(`Submitting review failed, no pending review for current pull request: ${pullRequest.prNumber}.`);
 		}
 	}
 
-	async requestChanges(pullRequest: PullRequestModel, message?: string): Promise<void> {
-		const action: Promise<void> = await this.getPendingReviewId(pullRequest)
+	async requestChanges(pullRequest: PullRequestModel, message?: string): Promise<CommonReviewEvent> {
+		const action: Promise<CommonReviewEvent> = await this.getPendingReviewId(pullRequest)
 			? this.submitReview(pullRequest, ReviewEvent.RequestChanges, message)
 			: this.createReview(pullRequest, ReviewEvent.RequestChanges, message);
 
@@ -1174,8 +1175,8 @@ export class PullRequestManager {
 			});
 	}
 
-	async approvePullRequest(pullRequest: PullRequestModel, message?: string): Promise<void> {
-		const action: Promise<void> = await this.getPendingReviewId(pullRequest)
+	async approvePullRequest(pullRequest: PullRequestModel, message?: string): Promise<CommonReviewEvent> {
+		const action: Promise<CommonReviewEvent> = await this.getPendingReviewId(pullRequest)
 			? this.submitReview(pullRequest, ReviewEvent.Approve, message)
 			: this.createReview(pullRequest, ReviewEvent.Approve, message);
 
