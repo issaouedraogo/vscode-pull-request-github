@@ -326,6 +326,38 @@ export function convertRESTTimelineEvents(events: any[]): Common.TimelineEvent[]
 	return events;
 }
 
+export function getReactionGroup(): { title: string; label: string; }[] {
+	let ret = [
+		{
+			title: 'CONFUSED',
+			label: '😕'
+		}, {
+			title: 'EYES',
+			label: '👀'
+		}, {
+			title: 'HEART',
+			label: '❤'
+		}, {
+			title: 'HOORAY',
+			label: '🎉'
+		}, {
+			title: 'LAUGH',
+			label: '😄'
+		}, {
+			title: 'ROCKET',
+			label: '🚀'
+		}, {
+			title: 'THUMBS_DOWN',
+			label: '👎'
+		}, {
+			title: 'THUMBS_UP',
+			label: '👍'
+		}
+	];
+
+	return ret;
+}
+
 export function getRelatedUsersFromTimelineEvents(timelineEvents: Common.TimelineEvent[]): { login: string; name: string; }[] {
 	let ret: { login: string; name: string; }[] = [];
 

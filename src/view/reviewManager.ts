@@ -25,6 +25,7 @@ import { Remote, parseRepositoryRemotes } from '../common/remote';
 import { RemoteQuickPickItem } from './quickpick';
 import { PullRequestManager, onDidSubmitReview } from '../github/pullRequestManager';
 import { PullRequestModel } from '../github/pullRequestModel';
+import { getReactionGroup } from '../github/utils';
 
 export class ReviewManager implements vscode.DecorationProvider {
 	public static ID = 'Review';
@@ -1112,7 +1113,10 @@ export class ReviewManager implements vscode.DecorationProvider {
 			finishDraft: supportsGraphQL ? this.finishDraft.bind(this) : undefined,
 			startDraftLabel: 'Start Review',
 			deleteDraftLabel: 'Delete Review',
-			finishDraftLabel: 'Submit Review'
+			finishDraftLabel: 'Submit Review',
+			reactionGroup: supportsGraphQL ? getReactionGroup() : undefined,
+			addReaction: supportsGraphQL ? this.addReaction.bind(this) : undefined,
+			deleteReaction: supportsGraphQL ? this.deleteReaction.bind(this) : undefined
 		}));
 
 		this._localToDispose.push(vscode.workspace.registerWorkspaceCommentProvider({
@@ -1127,6 +1131,66 @@ export class ReviewManager implements vscode.DecorationProvider {
 				return [...comments, ...outdatedComments].reduce((prev, curr) => prev.concat(curr), []);
 			}
 		}));
+	}
+
+	private async addReaction(document: vscode.TextDocument, comment: vscode.Comment, reaction: vscode.CommentReaction) {
+		if (!this._prManager.activePullRequest) {
+			throw new Error('Unable to find active pull request');
+		}
+
+		try {
+			if (!this._prManager.activePullRequest) {
+				throw new Error('Unable to find active pull request');
+			}
+
+			const matchedFile = this.findMatchedFileByUri(document);
+			if (!matchedFile) {
+				throw new Error('Unable to find matching file');
+			}
+
+			let matchedRawComment = matchedFile.comments.find(cmt => String(cmt.id) === comment.commentId);
+
+			if (!matchedRawComment) {
+				throw new Error('Unable to find matching comment');
+			}
+
+			await this._prManager.addCommentReaction(this._prManager.activePullRequest, matchedRawComment.graphNodeId, reaction);
+
+			// trigger update
+			this.updateComments();
+		} catch (e) {
+			vscode.window.showErrorMessage(`Failed to add the reaction: ${e}`);
+		}
+	}
+
+	private async deleteReaction(document: vscode.TextDocument, comment: vscode.Comment, reaction: vscode.CommentReaction) {
+		if (!this._prManager.activePullRequest) {
+			throw new Error('Unable to find active pull request');
+		}
+
+		try {
+			if (!this._prManager.activePullRequest) {
+				throw new Error('Unable to find active pull request');
+			}
+
+			const matchedFile = this.findMatchedFileByUri(document);
+			if (!matchedFile) {
+				throw new Error('Unable to find matching file');
+			}
+
+			let matchedRawComment = matchedFile.comments.find(cmt => String(cmt.id) === comment.commentId);
+
+			if (!matchedRawComment) {
+				throw new Error('Unable to find matching comment');
+			}
+
+			await this._prManager.deleteCommentReaction(this._prManager.activePullRequest, matchedRawComment.graphNodeId, reaction);
+
+			// trigger update
+			this.updateComments();
+		} catch (e) {
+			vscode.window.showErrorMessage(`Failed to delete the reaction: ${e}`);
+		}
 	}
 
 	private async startDraft(_document: vscode.TextDocument, _token: vscode.CancellationToken): Promise<void> {
